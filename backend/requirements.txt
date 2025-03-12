@@ -1,0 +1,16 @@
+flask
+fastapi
+uvicorn
+pydantic
+scikit-learn
+numpy
+pillow
+joblib
+locust
+prometheus-fastapi-instrumentator
+prometheus-client
+pandas
+matplotlib
+seaborn
+opencv-python
+modelstore

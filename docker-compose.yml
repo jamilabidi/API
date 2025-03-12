@@ -1,0 +1,111 @@
+version: "3.8"
+
+services:
+  frontend:
+    image: fastapi-app
+    #build: ./frontend
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    # volumes:
+    #   - ./frontend:/app/my-react-app # Monte tout le projet pour le live reload
+    #   #- /app/node_modules # Empêche les conflits avec les dépendances locales
+    # environment:
+    #   - CHOKIDAR_USEPOLLING=true # Nécessaire pour que React détecte les changements
+    environment:
+      - ENABLE_METRICS=true
+    networks:
+      my_network:
+        aliases:
+          - api
+
+  api:
+    build: ./backend
+    container_name: api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app # Monte le code source pour le hot reload
+    depends_on:
+      - frontend
+    command:
+      ["uvicorn", "app:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+    networks:
+      my_network:
+        aliases:
+          - api
+
+  locust:
+    build: ./locust
+    container_name: locust
+    depends_on:
+      - api
+    networks:
+      my_network:
+        aliases:
+          - api
+    ports:
+      - "8089:8089"
+
+  node-exporter:
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.rootfs=/rootfs"
+      - "--path.sysfs=/host/sys"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
+    ports:
+      - "9100:9100"
+    networks:
+      my_network:
+        aliases:
+          - api
+
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: prometheus
+    restart: unless-stopped
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--web.console.libraries=/etc/prometheus/console_libraries"
+      - "--web.console.templates=/etc/prometheus/consoles"
+      - "--web.enable-lifecycle"
+    ports:
+      - "9090:9090"
+    networks:
+      my_network:
+        aliases:
+          - api
+  grafana:
+    image: grafana/grafana
+    container_name: grafana
+    ports:
+      - "3001:3000"
+    restart: unless-stopped
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=grafana
+    volumes:
+      - grafana_data:/var/lib/grafana
+    networks:
+      my_network:
+        aliases:
+          - api
+
+networks:
+  my_network:
+    driver: bridge
+
+volumes:
+  prometheus_data: {}
+  grafana_data:
